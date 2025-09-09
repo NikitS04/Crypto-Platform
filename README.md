@@ -6,7 +6,7 @@ A feature-rich trading platform designed to handle real-time cryptocurrency tran
 ## Features
 
 ### Backend
-- **High-Performance Processing**: Capable of handling 100,000+ transactions efficiently using Spring Boot and PostgreSQL.
+- **High-Performance Processing**: Capable of handling 10,000+ transactions efficiently using Spring Boot and PostgreSQL.
 - **Secure RESTful APIs**:
   - Buy and sell cryptocurrency.
   - Wallet-to-wallet transfers.
