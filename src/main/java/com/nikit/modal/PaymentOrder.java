@@ -22,4 +22,8 @@ public class PaymentOrder {
 
     @ManyToOne
     private User user;
+
+    // Provider-side payment / checkout session id, unique so one payment can't be credited twice
+    @Column(unique = true)
+    private String providerPaymentId;
 }

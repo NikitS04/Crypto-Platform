@@ -23,7 +23,8 @@ const Wallet = () => {
 
     const orderId=query.get("order_id")
 
-    const paymentId = query.get("payment_id")
+    // Stripe redirects back with session_id, Razorpay with razorpay_payment_id
+    const paymentId = query.get("session_id")
 
     const razorpayPaymentId = query.get("razorpay_payment_id")
 
@@ -42,7 +43,7 @@ const Wallet = () => {
         if(orderId){
             dispatch(depositMoney({jwt:localStorage.getItem("jwt"),
             orderId,
-            paymentId: razorpayPaymentId | paymentId,
+            paymentId: razorpayPaymentId || paymentId,
             navigate
             }))
         }
@@ -84,7 +85,7 @@ const Wallet = () => {
                 <div className="flex items-center">
                     <DollarSign/>
                     <span className="text-2xl font-semibold">
-                        {wallet.userWallet.balance}
+                        {wallet.userWallet?.balance}
                     </span>
                 </div>
 
@@ -208,7 +209,9 @@ const Wallet = () => {
 
                         <div>
 
-                            <p className="text-green-500">${item.amount.toLocaleString()}</p>
+                            <p className={item.amount < 0 ? "text-red-500" : "text-green-500"}>
+                                {item.amount < 0 ? "-" : "+"}${Math.abs(item.amount).toLocaleString()}
+                            </p>
 
                         </div>
 

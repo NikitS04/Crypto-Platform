@@ -17,7 +17,7 @@ export const payOrder = ({jwt, orderData, amount}) => async (dispatch) =>{
         dispatch({type: types.PAY_ORDER_SUCCESS, payload: response.data, amount})
         
     } catch (error) {
-        dispatch({type: types.PAY_ORDER_FAILURE, payload: error.message})
+        dispatch({type: types.PAY_ORDER_FAILURE, payload: error.response?.data?.message || error.message})
         console.log("Error", error.message)
         
     }

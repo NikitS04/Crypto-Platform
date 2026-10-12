@@ -2,18 +2,17 @@ package com.nikit.controller;
 
 
 import com.nikit.modal.*;
-import com.nikit.response.PaymentResponse;
-import com.nikit.service.OrderService;
 import com.nikit.service.PaymentService;
 import com.nikit.service.UserService;
 import com.nikit.service.WalletService;
-import jakarta.persistence.GeneratedValue;
+import com.nikit.service.WalletTransactionService;
+import com.nikit.domain.WalletTransactionType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
+import java.util.UUID;
 
 @RestController
 public class WalletController {
@@ -22,13 +21,13 @@ public class WalletController {
     private WalletService walletService;
 
     @Autowired
-    private OrderService orderService;
-
-    @Autowired
     private UserService userService;
 
     @Autowired
     private PaymentService paymentService;
+
+    @Autowired
+    private WalletTransactionService walletTransactionService;
 
 
     @GetMapping("/api/wallet")
@@ -55,20 +54,6 @@ public class WalletController {
 
     }
 
-
-    @PutMapping("/api/wallet/order/{orderId}/pay")
-    public ResponseEntity<Wallet> payOrderPayment(
-            @RequestHeader("Authorization") String jwt,
-            @PathVariable Long orderId) throws Exception {
-        User user = userService.findUserProfileByJwt(jwt);
-        Order order = orderService.getOrderById(orderId);
-        Wallet wallet = walletService.payOrderPayment(order, user);
-
-
-        return new ResponseEntity<>(wallet, HttpStatus.ACCEPTED);
-
-    }
-
     @PutMapping("/api/wallet/deposit")
     public ResponseEntity<Wallet> addBalanceToWallet(
             @RequestHeader("Authorization") String jwt,
@@ -81,21 +66,20 @@ public class WalletController {
 
         PaymentOrder order = paymentService.getPaymentOrderById(orderId);
 
-        Boolean status = paymentService.proceedPaymentOrder(order, paymentId);
-
-        if (wallet.getBalance()==null){
-            wallet.setBalance(BigDecimal.valueOf(0));
+        if (!order.getUser().getId().equals(user.getId())){
+            throw new SecurityException("Payment order does not belong to this user");
         }
+
+        boolean status = paymentService.proceedPaymentOrder(order, paymentId);
 
         if (status){
             wallet = walletService.addBalance(wallet, order.getAmount());
+            walletTransactionService.createTransaction(wallet.getId(), WalletTransactionType.ADD_MONEY,
+                    order.getAmount(), UUID.randomUUID().toString(), "Wallet top up");
         }
 
         return new ResponseEntity<>(wallet, HttpStatus.ACCEPTED);
 
     }
-
-
-
 
 }

@@ -88,7 +88,7 @@ const TopupForm = () =>{
                         id="r2"
                         />
 
-                        <Label htmlFor="r1">
+                        <Label htmlFor="r2">
                             <div className="bg-red rounded-md px-5 py-2 w-32">
                                 <img
                                 className="h-8"

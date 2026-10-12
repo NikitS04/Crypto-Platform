@@ -14,10 +14,13 @@ import { Input } from "@/components/ui/input"
 import React from "react";
 import { useForm } from "react-hook-form";
 import { useDispatch } from "react-redux";
+import { useNavigate } from "react-router-dom";
 
 const SignupForm = () =>{
 
     const dispatch = useDispatch()
+
+    const navigate = useNavigate()
 
     const form = useForm({
         resolver:"",
@@ -29,7 +32,7 @@ const SignupForm = () =>{
     })
 
     const onSubmit = (data) =>{
-        dispatch(register(data))
+        dispatch(register({data, navigate}))
 
         console.log(data)
     }
@@ -81,7 +84,7 @@ const SignupForm = () =>{
                         <FormControl>
                             <Input
                             className="border w-full border-gray-200 p-5"
-                            placeholder="Enter Password" {...field} />
+                            placeholder="Enter Password" type="password" {...field} />
                         </FormControl>
                         <FormMessage />
                         </FormItem>

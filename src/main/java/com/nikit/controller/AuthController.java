@@ -16,9 +16,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/auth")
@@ -39,18 +44,28 @@ public class AuthController {
     @Autowired
     private EmailService emailService;
 
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private JwtProvider jwtProvider;
+
     @PostMapping("/signup")
     public ResponseEntity<AuthResponse> register(@RequestBody User user) throws Exception {
 
+        if (user.getEmail() == null || user.getEmail().isBlank()
+                || user.getPassword() == null || user.getPassword().length() < 6) {
+            throw new IllegalArgumentException("A valid email and a password of at least 6 characters are required");
+        }
+
         User isEmailExist=userRepository.findByEmail(user.getEmail());
         if(isEmailExist!=null){
-            throw new Exception("Email is already in use");
+            throw new IllegalArgumentException("Email is already in use");
         }
 
         User newUser = new User();
         newUser.setEmail(user.getEmail());
-        newUser.setPassword(user.getPassword());
-        newUser.setEmail(user.getEmail());
+        newUser.setPassword(passwordEncoder.encode(user.getPassword()));
         newUser.setFullName(user.getFullName());
 
         User savedUser = userRepository.save(newUser);
@@ -58,13 +73,14 @@ public class AuthController {
         watchListService.createWatchlist(savedUser);
 
         Authentication auth = new UsernamePasswordAuthenticationToken(
-                user.getEmail(),
-                user.getPassword()
+                savedUser.getEmail(),
+                null,
+                List.of(new SimpleGrantedAuthority(savedUser.getRole().name()))
         );
 
         SecurityContextHolder.getContext().setAuthentication(auth);
 
-        String jwt = JwtProvider.generateToken(auth);
+        String jwt = jwtProvider.generateToken(auth);
 
         AuthResponse res = new AuthResponse();
         res.setJwt(jwt);
@@ -85,11 +101,11 @@ public class AuthController {
 
         SecurityContextHolder.getContext().setAuthentication(auth);
 
-        String jwt = JwtProvider.generateToken(auth);
+        String jwt = jwtProvider.generateToken(auth);
 
         User authUser= userRepository.findByEmail(userName);
 
-        if (user.getTwoFactorAuth().isEnabled()){
+        if (authUser.getTwoFactorAuth() != null && authUser.getTwoFactorAuth().isEnabled()){
             AuthResponse res = new AuthResponse();
             res.setMessage("Two factor auth is enabled");
             res.setTwoFactorAuthEnabled(true);
@@ -120,15 +136,17 @@ public class AuthController {
     }
 
     private Authentication authenticate(String userName, String password) {
-        UserDetails userDetails = customerUserDetailsService.loadUserByUsername(userName);
+        UserDetails userDetails;
+        try {
+            userDetails = customerUserDetailsService.loadUserByUsername(userName);
+        } catch (UsernameNotFoundException e) {
+            throw new BadCredentialsException("Invalid email or password");
+        }
 
-        if(userDetails == null){
-            throw new BadCredentialsException("Invalid username");
+        if(password == null || !passwordEncoder.matches(password, userDetails.getPassword())){
+            throw new BadCredentialsException("Invalid email or password");
         }
-        if(!password.equals(userDetails.getPassword())){
-            throw new BadCredentialsException("Invalid password");
-        }
-        return new UsernamePasswordAuthenticationToken(userDetails, password, userDetails.getAuthorities());
+        return new UsernamePasswordAuthenticationToken(userDetails.getUsername(), null, userDetails.getAuthorities());
     }
 
     @PostMapping("/two-factor/otp/{otp}")
@@ -138,15 +156,16 @@ public class AuthController {
 
         TwoFactorOTP twoFactorOTP=twoFactorOtpService.findById(id);
 
-        if(twoFactorOtpService.verifyTwoFactorOtp(twoFactorOTP, otp)){
+        if(twoFactorOTP != null && twoFactorOtpService.verifyTwoFactorOtp(twoFactorOTP, otp)){
             AuthResponse res = new AuthResponse();
             res.setMessage("2FA Verified");
             res.setTwoFactorAuthEnabled(true);
             res.setJwt(twoFactorOTP.getJwt());
+            twoFactorOtpService.deleteTwoFactorOtp(twoFactorOTP);
             return new ResponseEntity<>(res,HttpStatus.OK);
 
         }
-        throw new Exception("Invalid OTP");
+        throw new BadCredentialsException("Invalid OTP");
     }
 
 

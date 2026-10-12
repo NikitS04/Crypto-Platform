@@ -25,6 +25,7 @@ const Home = () => {
     const [inputValue, setInputValue] = React.useState("");
     const [isBotRelease, setIsBotRelease] = React.useState(false);
     const {coin} = useSelector(store=>store);
+    const bitcoin = coin.coinList.find((item) => item.id === "bitcoin");
     const dispatch=useDispatch();
 
     const handleCategory = (value) => {
@@ -117,7 +118,7 @@ const Home = () => {
                     <div className="flex gap-5 items-center">
                         <div>
                             <Avatar>
-                                <AvatarImage src={"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR-lzp6jMVVHdxHiK4q5Xy2FbJIrC-GPmTREA&s"}
+                                <AvatarImage src={bitcoin?.image}
                                 style={{ width: "40px", height: "40px" }}/>
                             </Avatar>
 
@@ -131,10 +132,10 @@ const Home = () => {
                             </div>
 
                             <div className="flex items-end gap-2">
-                                <p className="text-xl font-bold">5464</p>
-                                <p className="text-red-600">
-                                    <span>-1319049822.678</span>
-                                    <span>-0.29803%</span>
+                                <p className="text-xl font-bold">${bitcoin?.current_price?.toLocaleString()}</p>
+                                <p className={bitcoin?.price_change_24h < 0 ? "text-red-600" : "text-green-600"}>
+                                    <span>${bitcoin?.price_change_24h?.toFixed(2)}</span>
+                                    <span className="ml-2">({bitcoin?.price_change_percentage_24h?.toFixed(2)}%)</span>
                                 </p>
                             </div>
                         </div>
@@ -164,9 +165,8 @@ const Home = () => {
                         <div className="self-start pb-5 w-auto">
                             <div className="justify-end self-end px-5 py-2 rounded-md 
                             bg-gray-200 w-auto">
-                                <p>Hi, Raam Arora</p>
-                                <p>You can ask any crypto related questions</p>
-                                <p>like, price, market cap extra...</p>
+                                <p>Hi! The crypto assistant is coming soon.</p>
+                                <p>You will be able to ask about prices, market cap and more.</p>
                             </div>
                         </div>
 
@@ -186,18 +186,6 @@ const Home = () => {
                             </div> */}
 
                         
-                            {[1, 1, 1, 1].map((item, i) => (
-                                <div key={i} 
-                                    className={`${i % 2 === 0 ? "self-start" : "self-end"} 
-                                    pb-5 w-auto`}>
-                                    {i%2==0?<div className="justify-end self-end px-5 py-2 
-                                    rounded-md bg-gray-200 w-auto">
-                                        <p>prompt who are you</p>
-                                    </div>:<div className="justify-end self-end px-5 py-2 rounded-md bg-gray-200 w-auto">
-                                        <p>ans hi, Raam Arora</p>
-                                    </div>}
-                                </div>
-                            ))}
 
                     </div>
 

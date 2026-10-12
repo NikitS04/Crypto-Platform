@@ -10,9 +10,9 @@ import com.nikit.repository.WalletRepository;
 import com.nikit.repository.WalletTransactionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -34,15 +34,18 @@ public class WalletServiceImpl implements WalletService{
         if (wallet==null){
             wallet = new Wallet();
             wallet.setUser(user);
-            walletRepository.save(wallet);
+            wallet = walletRepository.save(wallet);
 
+        }
+        if (wallet.getBalance()==null){
+            wallet.setBalance(BigDecimal.ZERO);
         }
         return wallet;
     }
 
     @Override
     public Wallet addBalance(Wallet wallet, Long money) {
-        BigDecimal balance = wallet.getBalance();
+        BigDecimal balance = wallet.getBalance() == null ? BigDecimal.ZERO : wallet.getBalance();
         BigDecimal newBalance = balance.add(BigDecimal.valueOf(money));
 
         wallet.setBalance(newBalance);
@@ -57,15 +60,24 @@ public class WalletServiceImpl implements WalletService{
         if (wallet.isPresent()){
             return wallet.get();
         }
-        throw new Exception("Wallet not found");
+        throw new IllegalArgumentException("Wallet not found");
     }
 
     @Override
+    @Transactional
     public Wallet walletToWalletTransfer(User sender, Wallet recieverWallet, Long amount) throws Exception {
+        if (amount == null || amount <= 0){
+            throw new IllegalArgumentException("Transfer amount must be positive");
+        }
+
         Wallet senderWallet = getUserWallet(sender);
 
+        if (senderWallet.getId().equals(recieverWallet.getId())){
+            throw new IllegalArgumentException("Cannot transfer to your own wallet");
+        }
+
         if(senderWallet.getBalance().compareTo(BigDecimal.valueOf(amount))<0){
-            throw new Exception("Insufficient Balance");
+            throw new IllegalArgumentException("Insufficient Balance");
         }
 
         BigDecimal senderBalance = senderWallet.getBalance()
@@ -78,28 +90,23 @@ public class WalletServiceImpl implements WalletService{
         recieverWallet.setBalance(receiverBalance);
         walletRepository.save(recieverWallet);
 
-        WalletTransaction transaction = new WalletTransaction();
-        transaction.setWallet(senderWallet);
-        transaction.setType(WalletTransactionType.WALLET_TRANSFER); // Or appropriate type
-        transaction.setDate(LocalDateTime.now()); // Set current date
-        transaction.setTransferId(UUID.randomUUID().toString()); // Generate unique ID
-        transaction.setPurpose("Transfer to Wallet ID: " + recieverWallet.getId());
-        transaction.setAmount(amount);
-
-        // Save transaction
-        walletTransactionRepository.save(transaction);
+        recordTransaction(senderWallet, WalletTransactionType.WALLET_TRANSFER,
+                "Transfer to Wallet ID: " + recieverWallet.getId(), -amount);
+        recordTransaction(recieverWallet, WalletTransactionType.WALLET_TRANSFER,
+                "Transfer from Wallet ID: " + senderWallet.getId(), amount);
 
         return senderWallet;
     }
 
     @Override
+    @Transactional
     public Wallet payOrderPayment(Order order, User user) throws Exception {
         Wallet wallet = getUserWallet(user);
 
         if(order.getOrderType().equals(OrderType.BUY)){
             BigDecimal newBalance = wallet.getBalance().subtract(order.getPrice());
-            if(newBalance.compareTo(order.getPrice())<0){
-                throw new Exception("Insufficient funds for this transaction");
+            if(newBalance.compareTo(BigDecimal.ZERO)<0){
+                throw new IllegalArgumentException("Insufficient funds for this transaction");
             }
             wallet.setBalance(newBalance);
         }
@@ -109,5 +116,16 @@ public class WalletServiceImpl implements WalletService{
         }
         walletRepository.save(wallet);
         return wallet;
+    }
+
+    private void recordTransaction(Wallet wallet, WalletTransactionType type, String purpose, Long amount){
+        WalletTransaction transaction = new WalletTransaction();
+        transaction.setWallet(wallet);
+        transaction.setType(type);
+        transaction.setDate(LocalDateTime.now());
+        transaction.setTransferId(UUID.randomUUID().toString());
+        transaction.setPurpose(purpose);
+        transaction.setAmount(amount);
+        walletTransactionRepository.save(transaction);
     }
 }

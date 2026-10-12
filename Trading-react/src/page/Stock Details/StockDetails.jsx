@@ -30,8 +30,7 @@ const StockDetails = () =>{
     useEffect(()=>{
         dispatch(fetchCoinDetails({coinId:id, 
             jwt:localStorage.getItem("jwt")}))
-        dispatch(getUserWatchlist({
-            jwt:localStorage.getItem("jwt")}))
+        dispatch(getUserWatchlist(localStorage.getItem("jwt")))
         
         },[id])
 
@@ -64,9 +63,9 @@ const StockDetails = () =>{
 
                         <div className="flex items-end gap-2">
                             <p className="text-xl font-bold">${coin.coinDetails?.market_data.current_price.usd.toLocaleString()}</p>
-                            <p className="text-red-600">
-                                <span>${coin.coinDetails?.market_data.market_cap_change_24h.toLocaleString()}</span>
-                                <span>({coin.coinDetails?.market_data.market_cap_change_percentage_24h.toFixed(2)})%</span>
+                            <p className={coin.coinDetails?.market_data.price_change_24h < 0 ? "text-red-600" : "text-green-600"}>
+                                <span>${coin.coinDetails?.market_data.price_change_24h.toFixed(2)}</span>
+                                <span className="ml-2">({coin.coinDetails?.market_data.price_change_percentage_24h.toFixed(2)}%)</span>
                             </p>
                         </div>
 

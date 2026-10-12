@@ -31,7 +31,7 @@ const WithdrawalForm = () =>{
             bg-gray-100 text-xl font-bold px-5 py-4">
 
                 <p>Available balance</p>
-                <p>$9000</p>
+                <p>${wallet.userWallet?.balance}</p>
 
 
 
