@@ -1,6 +1,5 @@
 package com.nikit.controller;
 
-import com.nikit.domain.WalletTransactionType;
 import com.nikit.modal.User;
 import com.nikit.modal.WalletTransaction;
 import com.nikit.service.UserService;
@@ -22,32 +21,13 @@ public class WalletTransactionController {
     @Autowired
     private UserService userService;
 
-    // Existing POST endpoint for creating a transaction
-    @PostMapping
-    public ResponseEntity<WalletTransaction> createTransaction(
-            @RequestParam Long walletId,
-            @RequestParam WalletTransactionType type,
-            @RequestParam Long amount,
-            @RequestParam String transferId,
-            @RequestParam String purpose) {
-        try {
-            WalletTransaction transaction = walletTransactionService.createTransaction(walletId, type, amount, transferId, purpose);
-            return new ResponseEntity<>(transaction, HttpStatus.CREATED);
-        } catch (Exception e) {
-            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
-        }
-    }
+    // Transactions are only ever created server-side as a side effect of wallet operations,
+    // so there is deliberately no public endpoint for creating them.
 
-    // New GET endpoint for retrieving all wallet transactions for a user
     @GetMapping
-    public ResponseEntity<List<WalletTransaction>> getUserTransactions(@RequestHeader("Authorization") String jwt) {
-        try {
-            // Extract user from JWT (assuming a method for this exists)
-            User user = userService.findUserProfileByJwt(jwt);
-            List<WalletTransaction> transactions = walletTransactionService.getTransactionsByUser(user.getId());
-            return new ResponseEntity<>(transactions, HttpStatus.OK);
-        } catch (Exception e) {
-            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
-        }
+    public ResponseEntity<List<WalletTransaction>> getUserTransactions(@RequestHeader("Authorization") String jwt) throws Exception {
+        User user = userService.findUserProfileByJwt(jwt);
+        List<WalletTransaction> transactions = walletTransactionService.getTransactionsByUser(user.getId());
+        return new ResponseEntity<>(transactions, HttpStatus.OK);
     }
 }

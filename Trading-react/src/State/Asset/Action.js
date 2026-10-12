@@ -6,13 +6,13 @@ export const getAssetById = ({assetId, jwt}) => async (dispatch) =>{
     dispatch({type: types.GET_ASSET_REQUEST})
 
     try {
-        const response = await api.get(`/api/assets/${assetId}`, {
+        const response = await api.get(`/api/asset/${assetId}`, {
             headers: { Authorization : `Bearer ${jwt}`
             }
         });
 
         console.log("Asset By Id", response.data)
-        dispatch({type: types.GET_ASSET_SUCCESS, payload: response.data, amount})
+        dispatch({type: types.GET_ASSET_SUCCESS, payload: response.data})
         
     } catch (error) {
         dispatch({type: types.GET_ASSET_FAILURE, payload: error.message})

@@ -68,7 +68,7 @@ const SigninForm = () =>{
                         <FormControl>
                             <Input
                             className="border w-full border-gray-200 p-5"
-                            placeholder="Enter Password" {...field} />
+                            placeholder="Enter Password" type="password" {...field} />
                         </FormControl>
                         <FormMessage />
                         </FormItem>

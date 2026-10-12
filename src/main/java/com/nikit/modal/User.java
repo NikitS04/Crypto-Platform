@@ -7,7 +7,7 @@ import lombok.Data;
 
 @Entity
 @Data
-
+@Table(name = "users") // "user" is a reserved word in PostgreSQL
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO) //Whenever a new user is created an ID doesnt need to be made from our side

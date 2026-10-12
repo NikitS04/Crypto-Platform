@@ -6,18 +6,25 @@ import com.nikit.modal.TwoFactorAuth;
 import com.nikit.modal.User;
 import com.nikit.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
-@RestController
+@Service
 public class UserServiceImpl implements UserService{
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private JwtProvider jwtProvider;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
     @Override
     public User findUserProfileByJwt(String jwt) throws Exception {
-        String email = JwtProvider.getEmailFromToken(jwt);
+        String email = jwtProvider.getEmailFromToken(jwt);
         User user = userRepository.findByEmail(email);
 
         if (user == null){
@@ -63,7 +70,7 @@ public class UserServiceImpl implements UserService{
 
     @Override
     public User updatePassword(User user, String newPassword) {
-        user.setPassword(newPassword);
+        user.setPassword(passwordEncoder.encode(newPassword));
         return userRepository.save(user);
     }
 }

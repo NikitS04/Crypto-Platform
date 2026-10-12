@@ -64,6 +64,11 @@ const StockChart = ({coinId}) =>{
             type:"datetime",
             tickAmount:6
         },
+        yaxis:{
+            labels:{
+                formatter:(value) => "$" + value.toLocaleString(undefined, {maximumFractionDigits: value < 1 ? 6 : 2})
+            }
+        },
         markers:{
             colors:['#fff'],
             strokeColor:'#fff',

@@ -1,7 +1,6 @@
 import api from "@/config/api";
 
-import { ADD_PAYMENT_DETAILS_FAILURE, ADD_PAYMENT_DETAILS_REQUEST, ADD_PAYMENT_DETAILS_SUCCESS, GET_PAYMENT_DETAILS_FAILURE, GET_PAYMENT_DETAILS_REQUEST, GET_PAYMENT_DETAILS_SUCCESS, WITHDRAWAL_HISTORY_FAILURE, WITHDRAWAL_HISTORY_REQUEST, WITHDRAWAL_HISTORY_SUCCESS, WITHDRAWAL_PROCEED_FAILURE, WITHDRAWAL_PROCEED_REQUEST, WITHDRAWAL_PROCEED_SUCCESS, WITHDRAWAL_REQUEST, WITHDRAWAL_REQUEST_FAILURE, WITHDRAWAL_REQUEST_REQUEST, WITHDRAWAL_REQUEST_SUCCESS, WITHDRAWAL_SUCCESS } from "./ActionType";
-import PaymentDetails from "@/page/Payment Details/PaymentDetails";
+import { WITHDRAWAL_FAILURE, ADD_PAYMENT_DETAILS_FAILURE, ADD_PAYMENT_DETAILS_REQUEST, ADD_PAYMENT_DETAILS_SUCCESS, GET_PAYMENT_DETAILS_FAILURE, GET_PAYMENT_DETAILS_REQUEST, GET_PAYMENT_DETAILS_SUCCESS, WITHDRAWAL_HISTORY_FAILURE, WITHDRAWAL_HISTORY_REQUEST, WITHDRAWAL_HISTORY_SUCCESS, WITHDRAWAL_PROCEED_FAILURE, WITHDRAWAL_PROCEED_REQUEST, WITHDRAWAL_PROCEED_SUCCESS, WITHDRAWAL_REQUEST, WITHDRAWAL_REQUEST_FAILURE, WITHDRAWAL_REQUEST_REQUEST, WITHDRAWAL_REQUEST_SUCCESS, WITHDRAWAL_SUCCESS } from "./ActionType";
 
 export const withdrawalRequest = ({amount, jwt}) => async dispatch =>{
     dispatch({type: WITHDRAWAL_REQUEST})
@@ -16,7 +15,7 @@ export const withdrawalRequest = ({amount, jwt}) => async dispatch =>{
         dispatch({type: WITHDRAWAL_SUCCESS, payload: response.data})
         
     } catch (error) {
-        dispatch({type: WITHDRAWAL_SUCCESS, payload: error.message})
+        dispatch({type: WITHDRAWAL_FAILURE, payload: error.response?.data?.message || error.message})
         console.log("Error", error.message)
         
     }
@@ -26,7 +25,7 @@ export const proceedWithdrawal = ({id, jwt, accept}) => async dispatch =>{
     dispatch({type: WITHDRAWAL_PROCEED_REQUEST})
 
     try {
-        const response = await api.post(`/api/admin/withdrawal/${id}/proceed/${accept}`, null, {
+        const response = await api.patch(`/api/admin/withdrawal/${id}/proceed/${accept}`, null, {
             headers: { Authorization : `Bearer ${jwt}`
             }
         });
@@ -65,7 +64,7 @@ export const getAllWithdrawalRequest = jwt => async dispatch =>{
     dispatch({type: WITHDRAWAL_REQUEST_REQUEST})
 
     try {
-        const response = await api.post(`/api/admin/withdrawal`, {
+        const response = await api.get(`/api/admin/withdrawal`, {
             headers: { Authorization : `Bearer ${jwt}`
             }
         });

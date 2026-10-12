@@ -35,8 +35,6 @@ public class UserController {
     @Autowired
     private ForgotPasswordService forgotPasswordService;
 
-    private String jwt;
-
     @GetMapping("/api/users/profile")
     public ResponseEntity<User> getUserProfile(@RequestHeader("Authorization") String jwt) throws Exception {
         User user = userService.findUserProfileByJwt(jwt);
@@ -54,10 +52,9 @@ public class UserController {
         VerificationCode verificationCode = verificationCodeService.getVerifcationCodeByUser(user.getId());
 
         if(verificationCode != null){
-            verificationCode = verificationCodeService
-                    .sendVerificationCode(user, verificationType);
-
+            verificationCodeService.deleteVerificationCodeById(verificationCode);
         }
+        verificationCode = verificationCodeService.sendVerificationCode(user, verificationType);
 
         if(verificationType.equals(VerificationType.EMAIL)){
             emailService.sendVerificationOtpEmail(user.getEmail(), verificationCode.getOtp());
@@ -76,6 +73,9 @@ public class UserController {
         User user = userService.findUserProfileByJwt(jwt);
 
         VerificationCode verificationCode = verificationCodeService.getVerifcationCodeByUser(user.getId());
+        if (verificationCode == null){
+            throw new IllegalArgumentException("No verification code requested");
+        }
 
         String sendTo = verificationCode.getVerificationType().equals(VerificationType.EMAIL)
                 ?verificationCode.getEmail():
@@ -91,7 +91,7 @@ public class UserController {
             verificationCodeService.deleteVerificationCodeById(verificationCode);
             return new ResponseEntity<>(updateUser, HttpStatus.OK);
         }
-        throw new Exception("Wrong OTP");
+        throw new IllegalArgumentException("Wrong OTP");
     }
 
     @PostMapping("/auth/users/reset-password/send-otp")
@@ -125,21 +125,22 @@ public class UserController {
     @PatchMapping("/auth/users/reset-password/verify-otp")
     public ResponseEntity<ApiResponse> resetPassword(
             @RequestParam String id,
-            @RequestBody ResetPasswordRequest req,
-            @RequestHeader("Authorization") String jwt)
+            @RequestBody ResetPasswordRequest req)
             throws Exception {
 
         ForgotPasswordToken forgotPasswordToken = forgotPasswordService.findById(id);
 
-        boolean isVerified = forgotPasswordToken.getOtp().equals(req.getOtp());
+        boolean isVerified = forgotPasswordToken != null
+                && forgotPasswordToken.getOtp().equals(req.getOtp());
 
         if (isVerified){
             userService.updatePassword(forgotPasswordToken.getUser(), req.getPassword());
+            forgotPasswordService.deleteToken(forgotPasswordToken);
             ApiResponse res = new ApiResponse();
             res.setMessage("Password Updated Successfully");
             return new ResponseEntity<>(res, HttpStatus.ACCEPTED);
         }
-        throw new Exception("Wrong OTP");
+        throw new IllegalArgumentException("Wrong OTP");
 
     }
 

@@ -28,15 +28,14 @@ public class OrderController {
     @Autowired
     private CoinService coinService;
 
-//    @Autowired
-//    private WalletTransactionService walletTransactionService;
-
     @PostMapping("/pay")
     public ResponseEntity<Order> payOrderPayment(
             @RequestHeader("Authorization") String jwt,
             @RequestBody CreateOrderRequest req) throws Exception{
 
         User user = userService.findUserProfileByJwt(jwt);
+        // Refresh the coin from the market API so the order executes at the live price, not a cached one
+        coinService.getCoinDetails(req.getCoinId());
         Coin coin = coinService.findById(req.getCoinId());
 
         Order order = orderService.processOrder(coin, req.getQuantity(), req.getOrderType(), user);
@@ -45,7 +44,7 @@ public class OrderController {
 
     }
 
-    @PostMapping("/{orderId}")
+    @GetMapping("/{orderId}")
     public ResponseEntity<Order> getOrderById(
             @RequestHeader("Authorization") String jwtToken,
             @PathVariable Long orderId) throws Exception{
@@ -56,7 +55,7 @@ public class OrderController {
         if (order.getUser().getId().equals(user.getId())){
             return  ResponseEntity.ok(order);
         } else {
-            throw new Exception("Invalid User - No Access");
+            throw new SecurityException("Invalid User - No Access");
         }
     }
 

@@ -1,16 +1,17 @@
 package com.nikit.service;
 
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.nikit.domain.OrderStatus;
 import com.nikit.domain.OrderType;
 import com.nikit.modal.*;
 import com.nikit.repository.OrderItemRepository;
 import com.nikit.repository.OrderRepository;
-import jakarta.transaction.Transactional;
+import com.nikit.domain.WalletTransactionType;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -28,6 +29,9 @@ public class OrderServiceImpl implements OrderService {
 
     @Autowired
     private AssetService assetService;
+
+    @Autowired
+    private WalletTransactionService walletTransactionService;
 
     @Override
     public Order createOrder(User user, OrderItem orderItem, OrderType orderType) {
@@ -68,10 +72,10 @@ public class OrderServiceImpl implements OrderService {
 
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Order buyAsset(Coin coin, double quantity, User user) throws Exception {
         if(quantity<=0){
-            throw new Exception("Quantity should be > 0");
+            throw new IllegalArgumentException("Quantity should be > 0");
         }
         double buyPrice = coin.getCurrentPrice();
 
@@ -80,30 +84,31 @@ public class OrderServiceImpl implements OrderService {
         Order order = createOrder(user, orderItem, OrderType.BUY);
         orderItem.setOrder(order);
 
-        walletService.payOrderPayment(order, user);
+        Wallet wallet = walletService.payOrderPayment(order, user);
 
         order.setStatus(OrderStatus.SUCCESS);
         order.setOrderType(OrderType.BUY);
         Order savedOrder = orderRepository.save(order);
 
-        Asset oldAsset = assetService.findAssetByUserIdAndCoinId(
-                order.getUser().getId(),
-                order.getOrderItem().getCoin().getId());
+        Asset oldAsset = assetService.findAssetByUserIdAndCoinId(user.getId(), coin.getId());
         if (oldAsset == null){
-            assetService.createAsset(user, orderItem.getCoin(), orderItem.getQuantity());
-
+            assetService.createAsset(user, coin, quantity);
         } else {
-            assetService.updateAsset(oldAsset.getId(),quantity);
-
+            // Keep buyPrice as the weighted average cost so P&L stays correct across repeat buys
+            double totalQuantity = oldAsset.getQuantity() + quantity;
+            double averageCost = (oldAsset.getQuantity()*oldAsset.getBuyPrice() + quantity*buyPrice) / totalQuantity;
+            assetService.updateAsset(oldAsset.getId(), quantity, averageCost);
         }
+
+        recordTrade(wallet, WalletTransactionType.BUY_ASSET, order, "Bought " + quantity + " " + coin.getSymbol().toUpperCase());
         return savedOrder;
 
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Order sellAsset(Coin coin, double quantity, User user) throws Exception {
         if(quantity<=0){
-            throw new Exception("Quantity should be > 0");
+            throw new IllegalArgumentException("Quantity should be > 0");
         }
         double sellPrice = coin.getCurrentPrice();
 
@@ -111,39 +116,46 @@ public class OrderServiceImpl implements OrderService {
                 user.getId(),
                 coin.getId());
 
-        double buyPrice = assetToSell.getBuyPrice();
-
-        if (assetToSell != null){
-            OrderItem orderItem = createOrderItem(coin,
-                    quantity,
-                    buyPrice,
-                    sellPrice);
-
-            Order order = createOrder(user, orderItem, OrderType.SELL);
-            orderItem.setOrder(order);
-
-            if(assetToSell.getQuantity() >= quantity){
-                order.setStatus(OrderStatus.SUCCESS);
-                order.setOrderType(OrderType.SELL);
-                Order savedOrder = orderRepository.save(order);
-                walletService.payOrderPayment(order, user);
-
-                Asset updatedAsset = assetService.updateAsset(assetToSell.getId(), -quantity);
-
-                if (updatedAsset.getQuantity()*coin.getCurrentPrice()<=1){
-                    assetService.deleteAsset(updatedAsset.getId());
-                }
-                return savedOrder;
-            }
-            throw new Exception("Insufficient Quantity to Sell");
+        if (assetToSell == null){
+            throw new IllegalArgumentException("Asset not found");
         }
-        throw new Exception("Asset not found");
+        if(assetToSell.getQuantity() < quantity){
+            throw new IllegalArgumentException("Insufficient Quantity to Sell");
+        }
 
+        OrderItem orderItem = createOrderItem(coin,
+                quantity,
+                assetToSell.getBuyPrice(),
+                sellPrice);
+
+        Order order = createOrder(user, orderItem, OrderType.SELL);
+        orderItem.setOrder(order);
+
+        order.setStatus(OrderStatus.SUCCESS);
+        order.setOrderType(OrderType.SELL);
+        Order savedOrder = orderRepository.save(order);
+        Wallet wallet = walletService.payOrderPayment(order, user);
+
+        Asset updatedAsset = assetService.updateAsset(assetToSell.getId(), -quantity, assetToSell.getBuyPrice());
+
+        if (updatedAsset.getQuantity()*coin.getCurrentPrice()<=1){
+            assetService.deleteAsset(updatedAsset.getId());
+        }
+
+        recordTrade(wallet, WalletTransactionType.SELL_ASSET, order, "Sold " + quantity + " " + coin.getSymbol().toUpperCase());
+        return savedOrder;
+    }
+
+    private void recordTrade(Wallet wallet, WalletTransactionType type, Order order, String purpose) throws Exception {
+        long amount = order.getPrice().setScale(0, RoundingMode.HALF_UP).longValue();
+        walletTransactionService.createTransaction(wallet.getId(), type,
+                type == WalletTransactionType.BUY_ASSET ? -amount : amount,
+                String.valueOf(order.getId()), purpose);
     }
 
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Order processOrder(Coin coin, double quantity, OrderType orderType, User user) throws Exception {
         if (orderType == OrderType.BUY){
             return buyAsset(coin,quantity,user);
@@ -151,7 +163,7 @@ public class OrderServiceImpl implements OrderService {
         else if (orderType == OrderType.SELL){
             return sellAsset(coin,quantity,user);
         }
-        throw new Exception("Invalid Order Type");
+        throw new IllegalArgumentException("Invalid Order Type");
 
     }
 }

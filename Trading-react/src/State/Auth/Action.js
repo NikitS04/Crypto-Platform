@@ -1,19 +1,20 @@
 import axios from "axios";
 import { GET_USER_FAILURE, GET_USER_REQUEST, GET_USER_SUCCESS, LOGIN_FAILURE, LOGIN_REQUEST, LOGIN_SUCCESS, LOGOUT, REGISTER_FAILURE, REGISTER_REQUEST, REGISTER_SUCCESS } from "./ActionTypes";
 
-export const register = (userData)=>async(dispatch)=>{
+export const register = ({data, navigate})=>async(dispatch)=>{
 
     dispatch({type:REGISTER_REQUEST})
 
     const baseUrl = "http://localhost:5454"
 
     try {
-        const response = await axios.post(`${baseUrl}/auth/signup`, userData);
+        const response = await axios.post(`${baseUrl}/auth/signup`, data);
         const user = response.data;
         console.log(user);
 
         dispatch({type:REGISTER_SUCCESS, payload:user.jwt})
         localStorage.setItem("jwt", user.jwt)
+        navigate("/")
 
     } catch (error) {
         dispatch({type:REGISTER_FAILURE, payload:error.message})
@@ -73,6 +74,6 @@ export const getUser = (jwt)=>async(dispatch)=>{
 
 
 export const logout = () => (dispatch) =>{
-    localStorage.clear;
+    localStorage.removeItem("jwt");
     dispatch({ type: LOGOUT})
 }

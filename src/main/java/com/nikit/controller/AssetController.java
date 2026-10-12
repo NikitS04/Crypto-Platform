@@ -21,8 +21,13 @@ public class AssetController {
     private AssetService assetService;
 
     @GetMapping("/{assetId}")
-    public ResponseEntity<Asset> getAssetById(@PathVariable Long assetId) throws Exception {
+    public ResponseEntity<Asset> getAssetById(@PathVariable Long assetId,
+                                              @RequestHeader("Authorization") String jwt) throws Exception {
+        User user = userService.findUserProfileByJwt(jwt);
         Asset asset = assetService.getAssetById(assetId);
+        if (!asset.getUser().getId().equals(user.getId())){
+            throw new SecurityException("Invalid User - No Access");
+        }
         return ResponseEntity.ok().body(asset);
 
     }

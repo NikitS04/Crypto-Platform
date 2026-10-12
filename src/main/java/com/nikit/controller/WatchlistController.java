@@ -44,9 +44,14 @@ public class WatchlistController {
 
     @GetMapping("/{watchlistId}")
     public ResponseEntity<Watchlist> getWatchlistById(
-            @PathVariable Long watchlistId) throws Exception{
+            @PathVariable Long watchlistId,
+            @RequestHeader("Authorization") String jwt) throws Exception{
 
+        User user = userService.findUserProfileByJwt(jwt);
         Watchlist watchlist = watchListService.findById(watchlistId);
+        if (!watchlist.getUser().getId().equals(user.getId())){
+            throw new SecurityException("Invalid User - No Access");
+        }
         return ResponseEntity.ok(watchlist);
     }
 

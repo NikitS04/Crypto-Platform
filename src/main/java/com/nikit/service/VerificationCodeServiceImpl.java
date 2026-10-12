@@ -22,6 +22,7 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
         verificationCode1.setOtp(OtpUtils.generateOTP());
         verificationCode1.setVerificationType(verificationType);
         verificationCode1.setUser(user);
+        verificationCode1.setEmail(user.getEmail());
 
         return verificationCodeRepository.save(verificationCode1);
     }

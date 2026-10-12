@@ -37,8 +37,7 @@ const Sidebar = () => {
         <div className="mt-10 space-y-5">
             {menu.map((item) => (
                 <div key={item.name}>
-                    {/* Assuming you want to use SheetClose to close a sheet */}
-                    <SheetClose className="w-full">
+                    <SheetClose asChild>
                         <Button variant="outline" 
                         className="flex items-center gap-5 py-6 w-full"
                         onClick={() => {

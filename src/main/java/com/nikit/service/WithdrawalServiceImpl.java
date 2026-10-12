@@ -33,12 +33,15 @@ public class WithdrawalServiceImpl implements WithdrawalService{
             throw new Exception("Withdrawal not found");
         }
         Withdrawal withdrawal1 = withdrawal.get();
+        if (withdrawal1.getWithdrawalStatus() != WithdrawalStatus.PENDING){
+            throw new IllegalArgumentException("Withdrawal has already been processed");
+        }
         withdrawal1.setDate(LocalDateTime.now());
 
         if (accept){
             withdrawal1.setWithdrawalStatus(WithdrawalStatus.SUCCESS);
         }else {
-            withdrawal1.setWithdrawalStatus(WithdrawalStatus.PENDING);
+            withdrawal1.setWithdrawalStatus(WithdrawalStatus.DECLINE);
         }
 
         return withdrawalRepository.save(withdrawal1);

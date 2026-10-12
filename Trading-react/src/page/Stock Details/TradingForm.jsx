@@ -15,7 +15,11 @@ const TradingForm= () =>{
 
     const[amount, setAmount] = useState(0)
     const[quantity, setQuantity] = useState(0)
-    const {coin, asset, wallet} = useSelector(store=>store)
+    const {coin, asset, wallet, order} = useSelector(store=>store)
+
+    const insufficient = orderType === "BUY"
+        ? Number(amount) > Number(wallet.userWallet?.balance || 0)
+        : Number(quantity) > Number(asset.assetDetails?.quantity || 0)
 
 
     const handleChange = (e) =>{
@@ -88,8 +92,9 @@ const TradingForm= () =>{
                     </div>
 
                 </div>
-                {!true && <h1 className="text-red-600 text-center pt-4">
-                    Insufficient Wallet Funds To Buy</h1>}
+                {insufficient && <h1 className="text-red-600 text-center pt-4">
+                    {orderType === "BUY" ? "Insufficient Wallet Funds To Buy" : "Insufficient Quantity To Sell"}</h1>}
+                {order.error && <h1 className="text-red-600 text-center pt-4">{order.error}</h1>}
             </div>
 
             <div className="flex gap-5 items-center">
@@ -132,7 +137,7 @@ const TradingForm= () =>{
             </div>
 
             <div>
-                <Button onClick={handleBuyCrypto} 
+                <Button onClick={handleBuyCrypto} disabled={insufficient || !(Number(quantity) > 0)}
                 className={`w-full py-6 
                 ${orderType === "SELL" ? "bg-red-600" : "bg-green-600"}`}>
                     {orderType}
