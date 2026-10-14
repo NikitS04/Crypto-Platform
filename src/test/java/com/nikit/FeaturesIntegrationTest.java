@@ -2,9 +2,11 @@ package com.nikit;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nikit.analytics.PerformanceMetrics;
 import com.nikit.live.LivePrice;
 import com.nikit.live.LivePriceStore;
 import com.nikit.modal.Coin;
+import com.nikit.modal.PortfolioSnapshot;
 import com.nikit.modal.Wallet;
 import com.nikit.repository.CoinRepository;
 import com.nikit.repository.PortfolioSnapshotRepository;
@@ -185,6 +187,32 @@ class FeaturesIntegrationTest {
                 .andExpect(status().isBadRequest());
         Thread.sleep(300);
         assertThat(snapshotRepository.findByUserIdOrderByTimestampAsc(userId)).hasSize(before);
+    }
+
+    @Test
+    void aBurstOfTradesEndsOnTheFinalStateWithAStoredReturnThatMatchesAFullReplay() throws Exception {
+        String email = "burst-" + UUID.randomUUID() + "@test.com";
+        String jwt = signup(email, "Burst Trader");
+        fund(email, 10_000);
+        Long userId = userRepository.findByEmail(email).getId();
+
+        // Back-to-back trades at moving prices; snapshots may be coalesced, but none may be lost or misordered
+        for (int i = 0; i < 20; i++) {
+            setLivePrice(100 + i * 3);
+            trade(jwt, i % 2 == 0 ? "BUY" : "SELL", 1);
+        }
+        BigDecimal finalCash = walletRepository.findByUserId(userId).getBalance();
+        await(() -> {
+            List<PortfolioSnapshot> s = snapshotRepository.findByUserIdOrderByTimestampAsc(userId);
+            return !s.isEmpty() && s.get(s.size() - 1).getCash().compareTo(finalCash) == 0;
+        });
+
+        List<PortfolioSnapshot> snapshots = snapshotRepository.findByUserIdOrderByTimestampAsc(userId);
+        double[] replay = PerformanceMetrics.twrIndex(snapshots.stream()
+                .map(s -> new PerformanceMetrics.Point(s.getTimestamp(), s.getEquity().doubleValue(), s.getNetFlows().doubleValue()))
+                .toList());
+        assertThat(snapshots.get(snapshots.size() - 1).getTwrIndex()).isCloseTo(replay[replay.length - 1], within(1e-9));
+        assertThat(snapshots.size()).isLessThanOrEqualTo(20);
     }
 
     // ---------- leaderboard ----------

@@ -45,7 +45,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class ConcurrencyTest {
 
-    private static final int THREADS = 32;
 
     @Autowired private MockMvc mvc;
     @Autowired private ObjectMapper objectMapper;
@@ -101,9 +100,12 @@ class ConcurrencyTest {
         return objectMapper.writeValueAsString(Map.of("coinId", "bitcoin", "quantity", quantity, "orderType", type));
     }
 
-    /** Sends {@code count} requests as close to simultaneously as possible and returns how many got a 2xx. */
+    /**
+     * Sends {@code count} requests at the same instant and returns how many got a 2xx. Each request has its own
+     * thread, all parked on one gate, so every request really is in flight at once rather than queued in a pool.
+     */
     private int fireConcurrently(int count, IntFunction<RequestBuilder> request) throws Exception {
-        ExecutorService pool = Executors.newFixedThreadPool(THREADS);
+        ExecutorService pool = Executors.newFixedThreadPool(count);
         CountDownLatch startGate = new CountDownLatch(1);
         List<Future<Integer>> results = new ArrayList<>();
         for (int i = 0; i < count; i++) {
@@ -187,7 +189,8 @@ class ConcurrencyTest {
                     .contentType(MediaType.APPLICATION_JSON).content("{\"amount\": 3}"));
 
         // 100 x 7 out and 100 x 3 in for Alice, the reverse for Bob; no money created or lost
-        assertThat(balance(alice).add(balance(bob))).isEqualByComparingTo("2000");
+        assertThat(balance(alice).add(balance(bob)))
+                .as("alice %s + bob %s", balance(alice), balance(bob)).isEqualByComparingTo("2000");
         assertThat(balance(alice)).isEqualByComparingTo("600");
         assertThat(balance(bob)).isEqualByComparingTo("1400");
     }

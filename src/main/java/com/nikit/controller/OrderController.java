@@ -5,7 +5,9 @@ import com.nikit.modal.Coin;
 import com.nikit.modal.Order;
 import com.nikit.modal.User;
 import com.nikit.modal.WalletTransaction;
+import com.nikit.live.LivePrice;
 import com.nikit.live.LivePriceStore;
+import com.nikit.repository.CoinRepository;
 import com.nikit.request.CreateOrderRequest;
 import com.nikit.service.CoinService;
 import com.nikit.service.OrderService;
@@ -16,6 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -32,6 +35,9 @@ public class OrderController {
     @Autowired
     private LivePriceStore livePriceStore;
 
+    @Autowired
+    private CoinRepository coinRepository;
+
     private static final long LIVE_PRICE_MAX_AGE_MS = 15_000;
 
     @PostMapping("/pay")
@@ -40,14 +46,18 @@ public class OrderController {
             @RequestBody CreateOrderRequest req) throws Exception{
 
         User user = userService.findUserProfileByJwt(jwt);
-        // Refresh the coin from the market API so the order executes at the live price, not a cached one
-        coinService.getCoinDetails(req.getCoinId());
-        Coin coin = coinService.findById(req.getCoinId());
+        Coin coin = coinRepository.findById(req.getCoinId()).orElse(null);
 
-        // Prefer the streamed price when it is seconds old; the CoinGecko snapshot can be up to a minute old
-        livePriceStore.get(coin.getSymbol())
-                .filter(p -> p.isFresh(LIVE_PRICE_MAX_AGE_MS))
-                .ifPresent(p -> coin.setCurrentPrice(p.price()));
+        // Prefer the streamed price when it is seconds old. Only without one (or for a coin we've never stored)
+        // fall back to the market API, whose snapshot can be up to a minute old
+        Optional<LivePrice> live = coin == null ? Optional.empty()
+                : livePriceStore.get(coin.getSymbol()).filter(p -> p.isFresh(LIVE_PRICE_MAX_AGE_MS));
+        if (live.isPresent()) {
+            coin.setCurrentPrice(live.get().price());
+        } else {
+            coinService.getCoinDetails(req.getCoinId());
+            coin = coinService.findById(req.getCoinId());
+        }
 
         Order order = orderService.processOrder(coin, req.getQuantity(), req.getOrderType(), user);
         return ResponseEntity.ok(order);

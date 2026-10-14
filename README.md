@@ -118,10 +118,59 @@ The fix:
 - After acquiring a lock the row is **re-read**, so a copy cached earlier in the transaction can't be acted on.
 - Open-session-in-view is disabled, so each transaction works on its own fresh persistence context.
 
-Now exactly 30 of 100 withdrawals succeed against $300, exactly 50 of 100 $10 buys against $500, and 200
-concurrent two-way transfers conserve the total balance.
+`ConcurrencyTest` releases every request at once (one thread per request, all held at a start gate): exactly 30 of
+100 simultaneous $10 withdrawals succeed against $300, exactly 50 of 100 $10 buys against $500, and 200
+simultaneous two-way transfers conserve the total balance. The same tests pass against PostgreSQL.
 
 ---
+
+## Load Testing
+
+`scripts/loadtest/` contains a dependency-free load generator (plain Java 21, virtual threads) and a runner that
+reconciles the results against Postgres afterwards. It runs against a separate backend instance with its own
+database and Redis index, with rate limiting disabled since every request comes from one IP.
+
+```bash
+createdb -O trading trading_load
+./mvnw -DskipTests package
+set -a; . ./.env; set +a
+java -jar target/Trading-0.0.1-SNAPSHOT.jar --server.port=5455 \
+  --spring.datasource.url=jdbc:postgresql://localhost:${DB_PORT:-5432}/trading_load \
+  --spring.data.redis.database=1 --app.rate-limit.enabled=false
+scripts/loadtest/run.sh 101 30      # users, seconds per scenario
+```
+
+Results on an Apple M1 laptop (8 cores, 8 GB), with the load generator, backend, PostgreSQL 16 and Redis all on
+the same machine (CPU-bound at 100%), 30 s per scenario after a 3 s warm-up:
+
+| Scenario | Workers | Throughput | p50 | p95 | p99 | Errors |
+|---|---|---|---|---|---|---|
+| Market data reads (Redis cache + live price hash) | 64 | 2,858 req/s | 22 ms | 35 ms | 44 ms | 0 |
+| Market orders, 100 independent users | 100 | 555 orders/s | 167 ms | 293 ms | 367 ms | 0 |
+| Market orders, 32 workers on one wallet (lock contention) | 32 | 586 orders/s | 52 ms | 85 ms | 109 ms | 0 |
+| Portfolio analytics + leaderboard | 64 | 479 req/s | 125 ms | 223 ms | 273 ms | 0 |
+
+- **Cache:** a market data miss (CoinGecko) took 190-290 ms; a Redis hit took ~5 ms at p50.
+- **Consistency:** 36,245 successful order responses, exactly 36,245 orders written to Postgres, and no wallet or
+  holding went negative.
+
+### What the first run found
+
+The first run sustained 435 orders/s but also logged 16,415 dropped portfolio snapshots. Every trade queued a
+snapshot, and each snapshot recomputed the user's return by replaying their entire history to update the
+leaderboard, so snapshots got slower with every trade and the queue overflowed. Fixes:
+
+- **Coalescing:** a burst of trades by one user queues one snapshot, which reads the latest state.
+- **Incremental return:** each snapshot stores its running time-weighted return index, so updating the
+  leaderboard reads one row instead of the whole history.
+- **No per-order market data refresh** when a fresh live price exists, and realised P&L summed in SQL instead of
+  loading every order (which also loaded each order's item in a separate query).
+
+| | Before | After |
+|---|---|---|
+| Orders/s (100 users / one wallet) | 435 / 443 | 555 / 586 |
+| Analytics + leaderboard | 222 req/s, p99 526 ms, max 5.0 s | 479 req/s, p99 273 ms, max 0.4 s |
+| Dropped snapshots | 16,415 | 0 |
 
 ## Installation & Setup
 

@@ -40,16 +40,17 @@ public final class PerformanceMetrics {
         double value = 1.0;
         for (int i = 0; i < points.size(); i++) {
             if (i > 0) {
-                Point prev = points.get(i - 1);
-                Point cur = points.get(i);
-                double flow = cur.netFlows() - prev.netFlows();
-                if (prev.equity() > 0) {
-                    value *= (cur.equity() - flow) / prev.equity();
-                }
+                value = nextTwrIndex(value, points.get(i - 1), points.get(i));
             }
             index[i] = value;
         }
         return index;
+    }
+
+    /** Extends a return index by one period, so it can be kept up to date incrementally. */
+    public static double nextTwrIndex(double prevIndex, Point prev, Point cur) {
+        double flow = cur.netFlows() - prev.netFlows();
+        return prev.equity() > 0 ? prevIndex * (cur.equity() - flow) / prev.equity() : prevIndex;
     }
 
     public static double totalReturn(double[] index) {

@@ -96,4 +96,19 @@ class PerformanceMetricsTest {
         assertThat(daily).hasSize(1);
         assertThat(daily.get(0)).isCloseTo(110.0 / 105.0 - 1, within(1e-12));
     }
+
+    @Test
+    void incrementalIndexMatchesFullReplay() {
+        // Gains, a deposit, a loss and a withdrawal: extending the index one step at a time (as stored on each
+        // snapshot) must land exactly where replaying the whole history does
+        List<PerformanceMetrics.Point> points = List.of(
+                p(0, 1000, 1000), p(1, 1100, 1000), p(2, 2150, 2000), p(3, 1900, 2000), p(4, 1500, 1600));
+        double[] replay = PerformanceMetrics.twrIndex(points);
+
+        double index = 1.0;
+        for (int i = 1; i < points.size(); i++) {
+            index = PerformanceMetrics.nextTwrIndex(index, points.get(i - 1), points.get(i));
+            assertThat(index).isCloseTo(replay[i], within(1e-12));
+        }
+    }
 }

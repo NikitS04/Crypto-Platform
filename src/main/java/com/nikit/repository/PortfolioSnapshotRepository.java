@@ -10,4 +10,6 @@ public interface PortfolioSnapshotRepository extends JpaRepository<PortfolioSnap
     List<PortfolioSnapshot> findByUserIdOrderByTimestampAsc(Long userId);
 
     List<PortfolioSnapshot> findByUserIdAndTimestampAfterOrderByTimestampAsc(Long userId, Instant after);
+
+    PortfolioSnapshot findTopByUserIdOrderByTimestampDescIdDesc(Long userId);
 }

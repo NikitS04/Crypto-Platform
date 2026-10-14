@@ -3,7 +3,6 @@ package com.nikit.analytics;
 import com.nikit.domain.OrderStatus;
 import com.nikit.domain.OrderType;
 import com.nikit.modal.Asset;
-import com.nikit.modal.Order;
 import com.nikit.modal.PortfolioSnapshot;
 import com.nikit.modal.Wallet;
 import com.nikit.repository.*;
@@ -65,13 +64,9 @@ public class PortfolioAnalyticsService {
                     equity > 0 ? value / equity * 100 : 0));
         }
 
-        // Realised P&L: for each completed sell, (sell price - average cost at the time) x quantity
-        double realized = 0;
-        for (Order o : orderRepository.findByUserId(userId)) {
-            if (o.getOrderType() == OrderType.SELL && o.getStatus() == OrderStatus.SUCCESS && o.getOrderItem() != null) {
-                realized += (o.getOrderItem().getSellPrice() - o.getOrderItem().getBuyPrice()) * o.getOrderItem().getQuantity();
-            }
-        }
+        // Realised P&L: for each completed sell, (sell price - average cost at the time) x quantity.
+        // Summed in SQL; loading every order would also load each one's item in a separate query.
+        double realized = orderRepository.sumRealizedPnl(userId, OrderType.SELL, OrderStatus.SUCCESS);
 
         // Performance from the stored snapshots plus a live "now" point
         List<PortfolioSnapshot> snapshots = snapshotRepository.findByUserIdOrderByTimestampAsc(userId);

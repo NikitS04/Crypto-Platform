@@ -36,4 +36,8 @@ public class PortfolioSnapshot {
     // Cumulative external cash flows (deposits, withdrawals, transfers) up to this point.
     // Equity changes caused by these are not investment returns, so TWR strips them out.
     private BigDecimal netFlows;
+
+    // Time-weighted return index up to and including this snapshot (1.0 = break-even). Stored so the latest
+    // return is one row read instead of a replay of the whole history. Null on rows written before it existed.
+    private Double twrIndex;
 }
