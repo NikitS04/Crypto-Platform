@@ -17,7 +17,9 @@ public class Watchlist {
     @OneToOne
     private User user;
 
-    @ManyToMany
+    // Eager: the watchlist is always returned with its coins, and responses are serialised
+    // after the transaction ends (open-in-view is disabled)
+    @ManyToMany(fetch = FetchType.EAGER)
     private List<Coin> coins = new ArrayList<>();
 
 }

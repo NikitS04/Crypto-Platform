@@ -14,7 +14,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -39,22 +38,11 @@ public class WithdrawalController {
     public ResponseEntity<?> withdrawalRequest(
             @PathVariable Long amount,
             @RequestHeader("Authorization") String jwt) throws Exception{
-        if (amount == null || amount <= 0){
-            throw new IllegalArgumentException("Withdrawal amount must be positive");
-        }
-
         User user = userService.findUserProfileByJwt(jwt);
-        Wallet userWallet = walletService.getUserWallet(user);
 
-        if (userWallet.getBalance().compareTo(BigDecimal.valueOf(amount)) < 0){
-            throw new IllegalArgumentException("Insufficient balance");
-        }
-
+        // Balance check and debit happen atomically under the wallet's row lock
+        walletService.withdraw(user, amount);
         Withdrawal withdrawal = withdrawalService.requestWithdrawal(amount, user);
-        walletService.addBalance(userWallet, -withdrawal.getAmount());
-
-        walletTransactionService.createTransaction(userWallet.getId(), WalletTransactionType.WITHDRAWAL,
-                -withdrawal.getAmount(), UUID.randomUUID().toString(), "Bank account withdrawal");
 
         return new ResponseEntity<>(withdrawal, HttpStatus.OK);
     }

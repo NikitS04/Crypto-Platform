@@ -14,6 +14,8 @@ import SearchCoin from './page/Search/SearchCoin';
 import Notfound from './page/Notfound/Notfound';
 import Wallet from './page/Wallet/Wallet';
 import Auth from './page/Auth/Auth';
+import Analytics from './page/Analytics/Analytics';
+import Leaderboard from './page/Leaderboard/Leaderboard';
 import { useDispatch, useSelector } from 'react-redux';
 import { getUser } from './State/Auth/Action';
 
@@ -38,6 +40,8 @@ function App() {
         <Routes>
           <Route path="/" element={<Home/>}/>
           <Route path="/portfolio" element={<Portfolio/>}/>
+          <Route path="/analytics" element={<Analytics/>}/>
+          <Route path="/leaderboard" element={<Leaderboard/>}/>
           <Route path="/activity" element={<Activity/>}/>
           <Route path="/wallet" element={<Wallet/>}/>
           <Route path="/withdrawal" element={<Withdrawal/>}/>

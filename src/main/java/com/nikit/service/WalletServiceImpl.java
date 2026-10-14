@@ -1,14 +1,20 @@
 package com.nikit.service;
 
+import com.nikit.analytics.PortfolioChangedEvent;
 import com.nikit.domain.OrderType;
 import com.nikit.domain.WalletTransactionType;
 import com.nikit.modal.Order;
+import com.nikit.modal.PaymentOrder;
 import com.nikit.modal.User;
 import com.nikit.modal.Wallet;
 import com.nikit.modal.WalletTransaction;
+import com.nikit.repository.PaymentOrderRepository;
 import com.nikit.repository.WalletRepository;
 import com.nikit.repository.WalletTransactionRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +23,12 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
+/**
+ * Concurrency rule: every operation that changes a balance first takes a row lock on the wallet
+ * (SELECT ... FOR UPDATE) and does its check-then-update inside the same transaction. Concurrent
+ * requests for the same wallet therefore run one after another instead of racing on a stale balance.
+ * Transfers lock both wallets in ascending id order so opposite-direction transfers can't deadlock.
+ */
 @Service
 public class WalletServiceImpl implements WalletService{
 
@@ -25,6 +37,18 @@ public class WalletServiceImpl implements WalletService{
 
     @Autowired
     private WalletTransactionRepository walletTransactionRepository;
+
+    @Autowired
+    private PaymentOrderRepository paymentOrderRepository;
+
+    @Autowired
+    private PaymentService paymentService;
+
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    @Autowired
+    private ApplicationEventPublisher events;
 
 
     @Override
@@ -44,13 +68,60 @@ public class WalletServiceImpl implements WalletService{
     }
 
     @Override
+    @Transactional
+    public Wallet lockUserWallet(User user) {
+        Optional<Wallet> locked = walletRepository.findByUserIdForUpdate(user.getId());
+        if (locked.isPresent()){
+            return fresh(locked.get());
+        }
+        getUserWallet(user);
+        return fresh(walletRepository.findByUserIdForUpdate(user.getId()).orElseThrow());
+    }
+
+    @Override
+    @Transactional
     public Wallet addBalance(Wallet wallet, Long money) {
-        BigDecimal balance = wallet.getBalance() == null ? BigDecimal.ZERO : wallet.getBalance();
-        BigDecimal newBalance = balance.add(BigDecimal.valueOf(money));
+        Wallet locked = lockById(wallet.getId());
+        locked.setBalance(locked.getBalance().add(BigDecimal.valueOf(money)));
+        events.publishEvent(new PortfolioChangedEvent(locked.getUser().getId()));
+        return walletRepository.save(locked);
+    }
 
-        wallet.setBalance(newBalance);
+    @Override
+    @Transactional
+    public Wallet withdraw(User user, Long amount) {
+        if (amount == null || amount <= 0){
+            throw new IllegalArgumentException("Withdrawal amount must be positive");
+        }
+        Wallet wallet = lockUserWallet(user);
+        if (wallet.getBalance().compareTo(BigDecimal.valueOf(amount)) < 0){
+            throw new IllegalArgumentException("Insufficient balance");
+        }
+        wallet.setBalance(wallet.getBalance().subtract(BigDecimal.valueOf(amount)));
+        walletRepository.save(wallet);
+        recordTransaction(wallet, WalletTransactionType.WITHDRAWAL, "Bank account withdrawal", -amount);
+        events.publishEvent(new PortfolioChangedEvent(user.getId()));
+        return wallet;
+    }
 
-        return walletRepository.save(wallet);
+    @Override
+    @Transactional
+    public Wallet deposit(User user, Long paymentOrderId, String paymentId) throws Exception {
+        PaymentOrder order = paymentOrderRepository.findByIdForUpdate(paymentOrderId)
+                .orElseThrow(() -> new IllegalArgumentException("Payment order not found"));
+
+        if (!order.getUser().getId().equals(user.getId())){
+            throw new SecurityException("Payment order does not belong to this user");
+        }
+
+        Wallet wallet = lockUserWallet(user);
+        if (paymentService.proceedPaymentOrder(order, paymentId)){
+            wallet.setBalance(wallet.getBalance().add(BigDecimal.valueOf(order.getAmount())));
+            walletRepository.save(wallet);
+            recordTransaction(wallet, WalletTransactionType.ADD_MONEY, "Wallet top up", order.getAmount());
+            events.publishEvent(new PortfolioChangedEvent(user.getId()));
+        }
+        return wallet;
     }
 
     @Override
@@ -70,30 +141,35 @@ public class WalletServiceImpl implements WalletService{
             throw new IllegalArgumentException("Transfer amount must be positive");
         }
 
-        Wallet senderWallet = getUserWallet(sender);
+        Long senderWalletId = getUserWallet(sender).getId();
+        Long receiverWalletId = recieverWallet.getId();
 
-        if (senderWallet.getId().equals(recieverWallet.getId())){
+        if (senderWalletId.equals(receiverWalletId)){
             throw new IllegalArgumentException("Cannot transfer to your own wallet");
         }
+
+        // Always lock the lower id first: two opposite transfers then request locks in the same
+        // order, so neither can hold one wallet while waiting for the other (no deadlock)
+        Wallet first = lockById(Math.min(senderWalletId, receiverWalletId));
+        Wallet second = lockById(Math.max(senderWalletId, receiverWalletId));
+        Wallet senderWallet = first.getId().equals(senderWalletId) ? first : second;
+        Wallet receiver = first.getId().equals(senderWalletId) ? second : first;
 
         if(senderWallet.getBalance().compareTo(BigDecimal.valueOf(amount))<0){
             throw new IllegalArgumentException("Insufficient Balance");
         }
 
-        BigDecimal senderBalance = senderWallet.getBalance()
-                .subtract(BigDecimal.valueOf(amount));
-        senderWallet.setBalance(senderBalance);
+        senderWallet.setBalance(senderWallet.getBalance().subtract(BigDecimal.valueOf(amount)));
+        receiver.setBalance(receiver.getBalance().add(BigDecimal.valueOf(amount)));
         walletRepository.save(senderWallet);
-
-        BigDecimal receiverBalance = recieverWallet.getBalance()
-                .add(BigDecimal.valueOf(amount));
-        recieverWallet.setBalance(receiverBalance);
-        walletRepository.save(recieverWallet);
+        walletRepository.save(receiver);
 
         recordTransaction(senderWallet, WalletTransactionType.WALLET_TRANSFER,
-                "Transfer to Wallet ID: " + recieverWallet.getId(), -amount);
-        recordTransaction(recieverWallet, WalletTransactionType.WALLET_TRANSFER,
+                "Transfer to Wallet ID: " + receiver.getId(), -amount);
+        recordTransaction(receiver, WalletTransactionType.WALLET_TRANSFER,
                 "Transfer from Wallet ID: " + senderWallet.getId(), amount);
+        events.publishEvent(new PortfolioChangedEvent(senderWallet.getUser().getId()));
+        events.publishEvent(new PortfolioChangedEvent(receiver.getUser().getId()));
 
         return senderWallet;
     }
@@ -101,7 +177,7 @@ public class WalletServiceImpl implements WalletService{
     @Override
     @Transactional
     public Wallet payOrderPayment(Order order, User user) throws Exception {
-        Wallet wallet = getUserWallet(user);
+        Wallet wallet = lockUserWallet(user);
 
         if(order.getOrderType().equals(OrderType.BUY)){
             BigDecimal newBalance = wallet.getBalance().subtract(order.getPrice());
@@ -115,6 +191,28 @@ public class WalletServiceImpl implements WalletService{
             wallet.setBalance(newBalance);
         }
         walletRepository.save(wallet);
+        return wallet;
+    }
+
+    private Wallet lockById(Long walletId){
+        return fresh(walletRepository.findByIdForUpdate(walletId)
+                .orElseThrow(() -> new IllegalArgumentException("Wallet not found")));
+    }
+
+    /**
+     * Re-reads the row after the lock is held. If the wallet was already loaded earlier in the same
+     * transaction, the locking query returns that cached instance with its old balance; refreshing
+     * guarantees we act on the value as of the moment we got the lock.
+     */
+    private Wallet fresh(Wallet wallet){
+        entityManager.refresh(wallet);
+        return withBalance(wallet);
+    }
+
+    private static Wallet withBalance(Wallet wallet){
+        if (wallet.getBalance() == null){
+            wallet.setBalance(BigDecimal.ZERO);
+        }
         return wallet;
     }
 

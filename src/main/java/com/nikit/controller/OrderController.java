@@ -5,6 +5,7 @@ import com.nikit.modal.Coin;
 import com.nikit.modal.Order;
 import com.nikit.modal.User;
 import com.nikit.modal.WalletTransaction;
+import com.nikit.live.LivePriceStore;
 import com.nikit.request.CreateOrderRequest;
 import com.nikit.service.CoinService;
 import com.nikit.service.OrderService;
@@ -28,6 +29,11 @@ public class OrderController {
     @Autowired
     private CoinService coinService;
 
+    @Autowired
+    private LivePriceStore livePriceStore;
+
+    private static final long LIVE_PRICE_MAX_AGE_MS = 15_000;
+
     @PostMapping("/pay")
     public ResponseEntity<Order> payOrderPayment(
             @RequestHeader("Authorization") String jwt,
@@ -37,6 +43,11 @@ public class OrderController {
         // Refresh the coin from the market API so the order executes at the live price, not a cached one
         coinService.getCoinDetails(req.getCoinId());
         Coin coin = coinService.findById(req.getCoinId());
+
+        // Prefer the streamed price when it is seconds old; the CoinGecko snapshot can be up to a minute old
+        livePriceStore.get(coin.getSymbol())
+                .filter(p -> p.isFresh(LIVE_PRICE_MAX_AGE_MS))
+                .ifPresent(p -> coin.setCurrentPrice(p.price()));
 
         Order order = orderService.processOrder(coin, req.getQuantity(), req.getOrderType(), user);
         return ResponseEntity.ok(order);

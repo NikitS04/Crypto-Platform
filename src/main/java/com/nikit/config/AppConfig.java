@@ -1,5 +1,7 @@
 package com.nikit.config;
 
+import com.nikit.ratelimit.RateLimitFilter;
+import com.nikit.ratelimit.RateLimiter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,8 +23,23 @@ public class AppConfig {
     @Value("${app.frontend.url}")
     private String frontendUrl;
 
+    @Value("${app.rate-limit.enabled:true}")
+    private boolean rateLimitEnabled;
+
+    @Value("${app.rate-limit.auth.capacity:10}")
+    private int authCapacity;
+
+    @Value("${app.rate-limit.auth.refill-per-second:0.2}")
+    private double authRefill;
+
+    @Value("${app.rate-limit.api.capacity:60}")
+    private int apiCapacity;
+
+    @Value("${app.rate-limit.api.refill-per-second:2}")
+    private double apiRefill;
+
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, JwtProvider jwtProvider)throws Exception{
+    SecurityFilterChain securityFilterChain(HttpSecurity http, JwtProvider jwtProvider, RateLimiter rateLimiter)throws Exception{
         http.sessionManagement(management->management.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(Authorize->Authorize
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
@@ -34,6 +51,13 @@ public class AppConfig {
                 .addFilterBefore(new JwtTokenValidator(jwtProvider), BasicAuthenticationFilter.class)
                 .csrf(csrf->csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()));
+
+        if (rateLimitEnabled) {
+            // Runs after JWT validation so signed-in users are limited per account rather than per IP
+            http.addFilterAfter(new RateLimitFilter(rateLimiter,
+                    new RateLimitFilter.Policy(authCapacity, authRefill),
+                    new RateLimitFilter.Policy(apiCapacity, apiRefill)), JwtTokenValidator.class);
+        }
         return http.build();
     }
 

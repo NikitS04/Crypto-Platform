@@ -11,7 +11,11 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.nikit.live.LivePrice;
+import com.nikit.live.LivePriceStore;
+
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/coins")
@@ -22,6 +26,15 @@ public class CoinController {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private LivePriceStore livePriceStore;
+
+    // Latest streamed prices keyed by symbol; the browser uses this for the first render, then /ws/prices
+    @GetMapping("/live")
+    ResponseEntity<Map<String, LivePrice>> getLivePrices() {
+        return ResponseEntity.ok(livePriceStore.getAll());
+    }
 
     @GetMapping
     ResponseEntity<List<Coin>> getCoinList(@RequestParam(defaultValue = "1", name = "page") int page) throws Exception {

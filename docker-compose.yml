@@ -37,6 +37,7 @@ services:
       RAZORPAY_API_KEY: ${RAZORPAY_API_KEY:-}
       RAZORPAY_API_SECRET: ${RAZORPAY_API_SECRET:-}
       COINGECKO_API_KEY: ${COINGECKO_API_KEY:-}
+      LIVE_PRICES_URL: ${LIVE_PRICES_URL:-wss://stream.binance.com:9443/ws/!miniTicker@arr}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}

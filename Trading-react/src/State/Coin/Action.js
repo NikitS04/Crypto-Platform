@@ -10,14 +10,13 @@ export const getCoinList = (page)=>async(dispatch)=>{
 
     try {
         const {data} = await axios.get(`${baseUrl}/coins?page=${page}`);
-        console.log("coin list", data);
-
         dispatch({type:FETCH_COIN_LIST_SUCCESS, payload : data})
+        return true
 
     } catch (error) {
-        dispatch({type:FETCH_COIN_LIST_FAILURE, payload : error.message})
-        console.log(error);
-        
+        dispatch({type:FETCH_COIN_LIST_FAILURE, payload : error.response?.data?.message || error.message})
+        // Tell the caller so it can stay on the page it was showing
+        return false
     }
 
 }

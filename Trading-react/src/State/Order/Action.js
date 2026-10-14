@@ -13,13 +13,13 @@ export const payOrder = ({jwt, orderData, amount}) => async (dispatch) =>{
             }
         });
 
-        console.log("New Order", response.data)
         dispatch({type: types.PAY_ORDER_SUCCESS, payload: response.data, amount})
-        
+        return response.data
+
     } catch (error) {
         dispatch({type: types.PAY_ORDER_FAILURE, payload: error.response?.data?.message || error.message})
-        console.log("Error", error.message)
-        
+        // Let the caller know it failed so it doesn't show a confirmation
+        return null
     }
 }
 

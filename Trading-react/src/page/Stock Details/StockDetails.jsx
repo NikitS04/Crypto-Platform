@@ -11,14 +11,15 @@ import {
     DialogTrigger,
   } from "@/components/ui/dialog"
   
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import TradingForm from "./TradingForm";
 import StockChart from "../Home/StockChart";
 import { useDispatch, useSelector } from "react-redux";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { fetchCoinDetails } from "@/State/Coin/Action";
 import { addItemToWatchlist, getUserWatchlist } from "@/State/Watchlist/Action";
 import { existInWatchlist } from "@/utils/existInWatchlist";
+import { LiveBadge, LiveChange, LivePriceText } from "@/live/LivePrice";
 
 const StockDetails = () =>{
 
@@ -26,6 +27,17 @@ const StockDetails = () =>{
 
     const dispatch = useDispatch();
     const {id} = useParams();
+    const [searchParams, setSearchParams] = useSearchParams();
+    // Which side the trade dialog opens on; null means closed. ?trade=BUY|SELL (from the home page) opens it directly.
+    const [tradeType, setTradeType] = useState(null);
+
+    useEffect(() => {
+        const requested = searchParams.get("trade")?.toUpperCase();
+        if (requested === "BUY" || requested === "SELL") {
+            setTradeType(requested);
+            setSearchParams({}, { replace: true });
+        }
+    }, [searchParams]);
 
     useEffect(()=>{
         dispatch(fetchCoinDetails({coinId:id, 
@@ -59,14 +71,15 @@ const StockDetails = () =>{
                             <p>{coin.coinDetails?.symbol.toUpperCase()}</p>
                             <DotIcon className="text-gray-400"/>
                             <p className="text-gray-400">{coin.coinDetails?.name}</p>
+                            <LiveBadge />
                         </div>
 
                         <div className="flex items-end gap-2">
-                            <p className="text-xl font-bold">${coin.coinDetails?.market_data.current_price.usd.toLocaleString()}</p>
-                            <p className={coin.coinDetails?.market_data.price_change_24h < 0 ? "text-red-600" : "text-green-600"}>
-                                <span>${coin.coinDetails?.market_data.price_change_24h.toFixed(2)}</span>
-                                <span className="ml-2">({coin.coinDetails?.market_data.price_change_percentage_24h.toFixed(2)}%)</span>
-                            </p>
+                            <LivePriceText symbol={coin.coinDetails?.symbol}
+                                fallback={coin.coinDetails?.market_data.current_price.usd}
+                                className="text-xl font-bold" />
+                            <LiveChange symbol={coin.coinDetails?.symbol}
+                                fallback={coin.coinDetails?.market_data.price_change_percentage_24h} />
                         </div>
 
                     </div>
@@ -82,16 +95,16 @@ const StockDetails = () =>{
                         }
                     </Button>
 
-                    <Dialog>
-                        <DialogTrigger>
-                            <Button size="lg">Trade</Button>
-                        </DialogTrigger>
+                    <Button size="lg" className="bg-green-600 hover:bg-green-700" onClick={() => setTradeType("BUY")}>Buy</Button>
+                    <Button size="lg" className="bg-red-600 hover:bg-red-700" onClick={() => setTradeType("SELL")}>Sell</Button>
+
+                    <Dialog open={tradeType !== null} onOpenChange={(open) => !open && setTradeType(null)}>
                         <DialogContent>
                             <DialogHeader>
-                            <DialogTitle>How much do you want to spend</DialogTitle>
-
+                            <DialogTitle>Trade {coin.coinDetails?.symbol?.toUpperCase()}</DialogTitle>
                             </DialogHeader>
-                            <TradingForm/>
+                            {/* Keyed by side so switching Buy/Sell from the page starts a fresh form */}
+                            <TradingForm key={tradeType} initialType={tradeType || "BUY"}/>
                         </DialogContent>
                     </Dialog>
 
@@ -102,6 +115,15 @@ const StockDetails = () =>{
 
             <div className="mt-14">
                 <StockChart coinId={id}/>
+            </div>
+
+            <div className="mt-6 flex gap-4">
+                <Button size="lg" className="flex-1 py-6 bg-green-600 hover:bg-green-700" onClick={() => setTradeType("BUY")}>
+                    Buy {coin.coinDetails?.symbol?.toUpperCase()}
+                </Button>
+                <Button size="lg" className="flex-1 py-6 bg-red-600 hover:bg-red-700" onClick={() => setTradeType("SELL")}>
+                    Sell {coin.coinDetails?.symbol?.toUpperCase()}
+                </Button>
             </div>
 
 

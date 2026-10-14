@@ -1,5 +1,6 @@
 package com.nikit.service;
 
+import com.nikit.analytics.PortfolioChangedEvent;
 import com.nikit.domain.OrderStatus;
 import com.nikit.domain.OrderType;
 import com.nikit.modal.*;
@@ -8,6 +9,7 @@ import com.nikit.repository.OrderRepository;
 import com.nikit.domain.WalletTransactionType;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -32,6 +34,9 @@ public class OrderServiceImpl implements OrderService {
 
     @Autowired
     private WalletTransactionService walletTransactionService;
+
+    @Autowired
+    private ApplicationEventPublisher events;
 
     @Override
     public Order createOrder(User user, OrderItem orderItem, OrderType orderType) {
@@ -157,6 +162,11 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Order processOrder(Coin coin, double quantity, OrderType orderType, User user) throws Exception {
+        // Lock the user's wallet before reading their balance or holdings. Every trade for this user
+        // then runs one at a time, which also protects the asset row from concurrent buys/sells.
+        walletService.lockUserWallet(user);
+        // Delivered after commit, so a failed or rolled-back trade never produces a snapshot
+        events.publishEvent(new PortfolioChangedEvent(user.getId()));
         if (orderType == OrderType.BUY){
             return buyAsset(coin,quantity,user);
         }

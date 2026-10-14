@@ -138,3 +138,9 @@ button:focus-visible {
     @apply bg-background text-foreground;
   }
 }
+
+/* Live price tick flashes */
+@keyframes flash-up-bg { from { background-color: rgba(22, 163, 74, 0.35); } to { background-color: transparent; } }
+@keyframes flash-down-bg { from { background-color: rgba(220, 38, 38, 0.35); } to { background-color: transparent; } }
+.flash-up { animation: flash-up-bg 0.7s ease-out; }
+.flash-down { animation: flash-down-bg 0.7s ease-out; }

@@ -2,7 +2,7 @@ import { logout } from "@/State/Auth/Action";
 import { Button } from "@/components/ui/button";
 import { SheetClose } from "@/components/ui/sheet";
 import { ActivityLogIcon, BookmarkIcon, DashboardIcon, ExitIcon, HomeIcon, PersonIcon } from "@radix-ui/react-icons";
-import { CreditCardIcon, LandmarkIcon, WalletIcon } from "lucide-react";
+import { BarChart3Icon, CreditCardIcon, LandmarkIcon, TrophyIcon, WalletIcon } from "lucide-react";
 import React from "react";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
@@ -10,6 +10,8 @@ import { useNavigate } from "react-router-dom";
 const menu = [
     {name: "Home", path: "/", icon: <HomeIcon className="h-6 w-6" />},
     {name: "Portfolio", path: "/portfolio", icon: <DashboardIcon className="h-6 w-6" />},
+    {name: "Analytics", path: "/analytics", icon: <BarChart3Icon className="h-6 w-6" />},
+    {name: "Leaderboard", path: "/leaderboard", icon: <TrophyIcon className="h-6 w-6" />},
     {name: "Watchlist", path: "/watchlist", icon: <BookmarkIcon className="h-6 w-6" />},
     {name: "Activity", path: "/activity", icon: <ActivityLogIcon className="h-6 w-6" />},
     {name: "Wallet", path: "/wallet", icon: <WalletIcon className="h-6 w-6" />},
