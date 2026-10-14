@@ -1,39 +1,28 @@
 # Trading-Platform
-A feature-rich trading platform designed to handle real-time cryptocurrency transactions and provide users with an intuitive interface to track, analyze, and manage their investments. This project integrates a secure backend with a dynamic frontend to deliver seamless trading experiences.
+A feature-rich trading platform designed to handle real-time cryptocurrency transactions and help users track, analyze, and manage their investments.
 
 ---
 
 ## Features
 
-### Backend
 - **Market Data Caching**: Redis cache-aside layer in front of the CoinGecko API with per-symbol keys and per-endpoint TTLs, so repeated reads never touch the rate-limited upstream API.
 - **Secure RESTful APIs**:
   - Buy and sell cryptocurrency.
   - Wallet-to-wallet transfers.
   - Deposit and withdraw funds.
 - **Authentication**: JWT-based authentication ensures secure access control and data protection.
-
-### Frontend
-- **Market Data Tracking**: Browse, search, and chart thousands of cryptocurrencies.
 - **Personalized Watchlists**: Users can create and manage custom watchlists for their favorite coins.
-- **Interactive Visualizations**: Responsive charts and graphs enable better decision-making.
-- **Modern UI**: Built with React and Tailwind CSS for a clean, user-friendly experience.
 
 ---
 
 ## Tech Stack
 
-### Backend
 - **Framework**: Spring Boot
 - **Database**: PostgreSQL
 - **Cache / real-time state**: Redis (Spring Cache, hashes, sorted sets, Lua scripts)
-- **Real-time**: WebSockets (Binance feed in, browser push out)
+- **Real-time**: WebSockets (Binance feed in, client push out)
 - **ORM**: JPA (Java Persistence API)
 - **Authentication**: JWT (JSON Web Token)
-
-### Frontend
-- **Framework**: React
-- **Styling**: Tailwind CSS
 
 ---
 
@@ -42,20 +31,19 @@ A feature-rich trading platform designed to handle real-time cryptocurrency tran
 Prices stream in real time from **Binance's free public market data feed** (no account or API key needed):
 
 - The backend holds **one** upstream WebSocket to Binance's all-market ticker stream and fans updates out to
-  every browser over its own WebSocket (`/ws/prices`), so the number of users never affects the upstream connection.
+  every client over its own WebSocket (`/ws/prices`), so the number of users never affects the upstream connection.
 - New clients get a snapshot of every price, then only the coins that changed (~1 update/second).
 - Latest prices live in a **Redis hash**, so any backend instance (and the `/coins/live` REST endpoint) serves the same
   data; the hash expires if the feed stops, so stale prices never look live.
 - Market orders fill at the live price when it is under 15s old, falling back to the cached CoinGecko price.
-- The upstream connection reconnects with exponential backoff; slow browser clients are dropped rather than
+- The upstream connection reconnects with exponential backoff; slow clients are dropped rather than
   blocking everyone else (`ConcurrentWebSocketSessionDecorator`).
-- In the UI, prices tick in place and flash green/red on each move.
 
 > binance.com is unavailable to US users; set `LIVE_PRICES_URL=wss://stream.binance.us:9443/ws/!miniTicker@arr` there.
 
 ## Portfolio Analytics
 
-The Analytics page shows equity, unrealised and realised P&L, an equity curve, allocation and per-holding P&L.
+`GET /api/portfolio/analytics` returns equity, unrealised and realised P&L, an equity curve, allocation and per-holding P&L.
 
 - **Time-weighted return (TWR)**: each period's return strips out deposits, withdrawals and transfers, so adding
   money never shows up as performance (`PerformanceMetrics.twrIndex`).
@@ -177,7 +165,6 @@ leaderboard, so snapshots got slower with every trade and the queue overflowed. 
 ### Prerequisites
 - Docker (for PostgreSQL and Redis), or local installs of both
 - Java 17 or later
-- Node.js and npm
 
 ### Quick Start with Docker
 ```bash
@@ -210,35 +197,10 @@ Most tests run against an in-memory H2 database (using the PostgreSQL dialect) w
 ./mvnw test
 ```
 
-### Frontend Setup
-1. Navigate to the frontend directory:
-   ```bash
-   cd Trading-react
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Start the development server:
-   ```bash
-   npm run dev
-   ```
-
----
-
-## Usage
-1. Access the application at `http://localhost:5173`.
-2. Sign in or create an account.
-3. Use the dashboard to:
-   - Track cryptocurrency prices and trends.
-   - Manage your personalized watchlist.
-   - Buy, sell, deposit, or withdraw funds securely.
-
 ---
 
 ## Acknowledgments
-- Built using **Spring Boot** and **React**.
-- Styled with **Tailwind CSS** for a modern and responsive design.
+- Built using **Spring Boot**.
 - Data persistence powered by **PostgreSQL**, market data cached in **Redis**.
 
 ---
